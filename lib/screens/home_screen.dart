@@ -1,9 +1,14 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as gl;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import '../config/theme.dart';
+import '../services/location_service.dart';
+import '../services/ride_service.dart';
+import '../models/route_model.dart';
+import 'search_screen.dart';
 
+/// Enhanced home screen with map, search bar, and nearby routes.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -12,82 +17,329 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-MapboxMap? mapBoxMapController;
+  MapboxMap? _mapController;
+  final LocationService _locationService = LocationService();
+  PointAnnotationManager? _annotationManager;
+  List<RouteModel> _nearbyRoutes = [];
+  bool _isLoadingRoutes = false;
+  gl.Position? _currentPosition;
 
-StreamSubscription? userPositionStream;
-
-@override
+  @override
   void initState() {
     super.initState();
-    _setupPositionTracking();
+    _initLocation();
   }
 
-
-  @override
-  void dispose() {
-  userPositionStream?.cancel();
-    super.dispose();
-  }
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body:MapWidget(onMapCreated: _onMapCreated,),
+  Future<void> _initLocation() async {
+    final position = await _locationService.getCurrentPosition();
+    if (position != null && mounted) {
+      setState(() => _currentPosition = position);
+      _loadNearbyRoutes(position.latitude, position.longitude);
+    }
+    _locationService.startTracking(
+      onPosition: (pos) {
+        if (mounted) setState(() => _currentPosition = pos);
+      },
     );
   }
 
-
-  void _onMapCreated(MapboxMap controller,){
-    setState(() {
-      mapBoxMapController = controller;
-    });
-    mapBoxMapController?.location.updateSettings(LocationComponentSettings(
-
-      enabled: true,
-      pulsingEnabled: true,
-    ),);
+  Future<void> _loadNearbyRoutes(double lat, double lng) async {
+    setState(() => _isLoadingRoutes = true);
+    try {
+      final routes = await RideService.getNearbyRoutes(lat, lng);
+      if (mounted) setState(() => _nearbyRoutes = routes);
+    } catch (_) {}
+    if (mounted) setState(() => _isLoadingRoutes = false);
   }
 
-  Future<void> _setupPositionTracking() async{
-      bool serviceEnabled;
-      gl.LocationPermission permission;
-
-      serviceEnabled = await gl.Geolocator.isLocationServiceEnabled();
-
-      if(!serviceEnabled)
-        {
-          return Future.error('Location Services are disabled');
-        }
-
-      permission = await gl.Geolocator.checkPermission();
-      if(permission == gl.LocationPermission.denied)
-        {
-          permission = await gl.Geolocator.requestPermission();
-
-          if(permission == gl.LocationPermission.denied)
-          {
-            return Future.error('Location Services are disabled');
-          }
-        }
-
-      if(permission == gl.LocationPermission.deniedForever){
-        return Future.error('Location Services are permanently denied, we cannot request permission');
-
-      }
-
-      gl.LocationSettings locationSettings = gl.LocationSettings(accuracy: gl.LocationAccuracy.high,distanceFilter:100,);
-      userPositionStream?.cancel();
-      userPositionStream = gl.Geolocator.getPositionStream(locationSettings: locationSettings).listen
-        (
-            (gl.Position? position,)
-
-        {
-          if(position!=null)
-            {
-              print(position,);
-            }
-
-        },);
-
+  void _onMapCreated(MapboxMap controller) {
+    _mapController = controller;
+    _mapController?.location.updateSettings(
+      LocationComponentSettings(
+        enabled: true,
+        pulsingEnabled: true,
+      ),
+    );
   }
 
+  void _centerOnUser() {
+    if (_currentPosition != null && _mapController != null) {
+      _mapController!.flyTo(
+        CameraOptions(
+          center: Point(
+            coordinates: Position(
+              _currentPosition!.longitude,
+              _currentPosition!.latitude,
+            ),
+          ),
+          zoom: 15.0,
+        ),
+        MapAnimationOptions(duration: 1000),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _locationService.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // ─── Full-screen Map ───
+          MapWidget(
+            onMapCreated: _onMapCreated,
+          ),
+
+          // ─── "Where to?" Search Bar ───
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 12,
+            left: 16,
+            right: 16,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SearchScreen(
+                      currentLat: _currentPosition?.latitude,
+                      currentLng: _currentPosition?.longitude,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(IniatoTheme.radiusLg),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, color: IniatoTheme.green, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Where are you going?',
+                        style: TextStyle(
+                          color: IniatoTheme.textSecondary,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 24,
+                      color: Colors.grey.withOpacity(0.3),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(Icons.schedule,
+                        color: IniatoTheme.textSecondary, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ─── My Location Button ───
+          Positioned(
+            right: 16,
+            bottom: 100,
+            child: FloatingActionButton.small(
+              heroTag: 'location',
+              backgroundColor: Colors.white,
+              onPressed: _centerOnUser,
+              child: const Icon(Icons.my_location, color: IniatoTheme.green),
+            ),
+          ),
+
+          // ─── Bottom Sheet: Nearby Routes / Recent ───
+          DraggableScrollableSheet(
+            initialChildSize: 0.12,
+            minChildSize: 0.12,
+            maxChildSize: 0.45,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // Drag handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Quick actions
+                    Row(
+                      children: [
+                        _buildQuickAction(
+                          Icons.home_outlined,
+                          'Home',
+                          () {},
+                        ),
+                        const SizedBox(width: 12),
+                        _buildQuickAction(
+                          Icons.work_outline,
+                          'Work',
+                          () {},
+                        ),
+                        const SizedBox(width: 12),
+                        _buildQuickAction(
+                          Icons.star_outline,
+                          'Saved',
+                          () {},
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Nearby routes
+                    if (_isLoadingRoutes)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (_nearbyRoutes.isNotEmpty) ...[
+                      Text(
+                        'Nearby Auto Routes',
+                        style: IniatoTheme.subheading.copyWith(fontSize: 15),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._nearbyRoutes.map(_buildRouteItem),
+                    ] else ...[
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          'Search for a destination to find shared rides',
+                          style: IniatoTheme.caption,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAction(IconData icon, String label, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: IniatoTheme.green.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: IniatoTheme.green, size: 22),
+              const SizedBox(height: 4),
+              Text(label, style: IniatoTheme.caption.copyWith(fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRouteItem(RouteModel route) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: IniatoTheme.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.local_taxi,
+              color: IniatoTheme.green,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Route #${route.routeId}',
+                  style: IniatoTheme.body.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${route.availableSeats} seats available',
+                  style: IniatoTheme.caption,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: IniatoTheme.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              route.status,
+              style: TextStyle(
+                color: IniatoTheme.green,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

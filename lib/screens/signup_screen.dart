@@ -1,51 +1,62 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../config/theme.dart';
+import '../services/auth_service.dart';
+import '../widgets/iniato_button.dart';
+import '../widgets/iniato_text_field.dart';
 import 'otp_screen.dart';
-import 'login_screen.dart'; // Make sure you have this imported
+import 'login_screen.dart';
 
 class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
+
   @override
-  _SignupScreenState createState() => _SignupScreenState();
+  State<SignupScreen> createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
+  final nameController = TextEditingController();
+  final phoneController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  String selectedGender = 'MALE';
+  String selectedPayment = 'CASH';
   bool isLoading = false;
-  bool isPressed = false;
+  bool obscurePassword = true;
+
+  final List<String> genders = ['MALE', 'FEMALE', 'OTHER'];
+  final List<String> paymentMethods = ['CASH', 'UPI', 'WALLET'];
 
   Future<void> registerRider() async {
-    if (nameController.text.trim().isEmpty || phoneController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please fill all fields")),
-      );
+    if (nameController.text.trim().isEmpty ||
+        phoneController.text.trim().isEmpty ||
+        emailController.text.trim().isEmpty ||
+        passwordController.text.trim().isEmpty) {
+      _showSnackBar('Please fill all fields');
+      return;
+    }
+
+    if (passwordController.text.trim().length < 6) {
+      _showSnackBar('Password must be at least 6 characters');
       return;
     }
 
     setState(() => isLoading = true);
-
-    final url = Uri.parse(
-      "http://localhost:8080/api/auth/register/rider/${phoneController.text.trim()}",
-    );
-
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "fullName": nameController.text.trim(),
-        }),
+      final success = await AuthService.registerRider(
+        phone: phoneController.text.trim(),
+        fullName: nameController.text.trim(),
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+        gender: selectedGender,
+        preferredPaymentMethod: selectedPayment,
       );
 
-      if (response.statusCode == 200) {
-        // send OTP
-        await http.post(
-          Uri.parse("http://localhost:8080/api/auth/register/rider/send-otp"),
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode({"phoneNumber": phoneController.text.trim()}),
-        );
+      if (!mounted) return;
 
+      if (success) {
+        // Send OTP after registration
+        await AuthService.sendOtp(phoneController.text.trim(), isLogin: false);
+        if (!mounted) return;
         Navigator.push(
           context,
           PageRouteBuilder(
@@ -53,203 +64,153 @@ class _SignupScreenState extends State<SignupScreen> {
               phoneNumber: phoneController.text.trim(),
               isLogin: false,
             ),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: Offset(1, 0), // slide from right
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              );
-            },
+            transitionsBuilder: (_, anim, __, child) =>
+                FadeTransition(opacity: anim, child: child),
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Registration failed")),
-        );
+        _showSnackBar('Registration failed. Phone or email may already exist.');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error connecting to server")),
-      );
+      _showSnackBar('Error: $e');
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
-  void goToLogin() {
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => LoginScreen(),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: Offset(-1, 0), // slide from left
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
-            ),
-          );
-        },
-      ),
-    );
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color green = Color(0xFF1B5E20);
-    final Color yellow = Color(0xFFFFEB3B);
-
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              green.withOpacity(0.9),
-              green.withOpacity(0.6),
-              yellow.withOpacity(0.3),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: IniatoTheme.backgroundGradient),
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             child: Container(
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.85),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                    offset: Offset(0, 10),
-                  ),
-                ],
-              ),
+              padding: const EdgeInsets.all(28),
+              decoration: IniatoTheme.cardDecoration,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  const Text('Create Account', style: IniatoTheme.heading),
+                  const SizedBox(height: 6),
                   Text(
-                    "Rider Signup",
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: green,
-                      letterSpacing: 1.2,
-                    ),
+                    'Join Iniato to start sharing rides',
+                    style: IniatoTheme.caption.copyWith(fontSize: 14),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                  // Full Name Field
-                  TextField(
+                  // Full Name
+                  IniatoTextField(
                     controller: nameController,
-                    decoration: InputDecoration(
-                      labelText: "Full Name",
-                      labelStyle: TextStyle(color: green),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.9),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: green.withOpacity(0.5), width: 1.5),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: green, width: 2),
-                      ),
-                    ),
+                    label: 'Full Name',
+                    icon: Icons.person,
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                  // Phone Number Field
-                  TextField(
+                  // Email
+                  IniatoTextField(
+                    controller: emailController,
+                    label: 'Email',
+                    icon: Icons.email,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Phone
+                  IniatoTextField(
                     controller: phoneController,
+                    label: 'Phone Number',
+                    icon: Icons.phone,
                     keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      labelText: "Phone Number",
-                      labelStyle: TextStyle(color: green),
-                      prefixIcon: Icon(Icons.phone, color: green),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.9),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: green.withOpacity(0.5), width: 1.5),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Password
+                  IniatoTextField(
+                    controller: passwordController,
+                    label: 'Password',
+                    icon: Icons.lock,
+                    obscureText: obscurePassword,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: IniatoTheme.green,
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: green, width: 2),
-                      ),
+                      onPressed: () =>
+                          setState(() => obscurePassword = !obscurePassword),
                     ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 14),
+
+                  // Gender + Payment Row
+                  Row(
+                    children: [
+                      // Gender dropdown
+                      Expanded(
+                        child: _buildDropdown(
+                          value: selectedGender,
+                          items: genders,
+                          label: 'Gender',
+                          onChanged: (v) =>
+                              setState(() => selectedGender = v!),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Payment method dropdown
+                      Expanded(
+                        child: _buildDropdown(
+                          value: selectedPayment,
+                          items: paymentMethods,
+                          label: 'Payment',
+                          onChanged: (v) =>
+                              setState(() => selectedPayment = v!),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
                   // Register Button
-                  GestureDetector(
-                    onTapDown: (_) => setState(() => isPressed = true),
-                    onTapUp: (_) {
-                      setState(() => isPressed = false);
-                      registerRider();
-                    },
-                    onTapCancel: () => setState(() => isPressed = false),
-                    child: AnimatedScale(
-                      scale: isPressed ? 0.95 : 1.0,
-                      duration: Duration(milliseconds: 100),
-                      child: Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: LinearGradient(
-                            colors: [green, green.withOpacity(0.7)],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 12,
-                              offset: Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: isLoading
-                              ? CircularProgressIndicator(color: yellow)
-                              : Text(
-                            "Register",
-                            style: TextStyle(
-                              color: yellow,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  IniatoButton(
+                    label: 'Register',
+                    onPressed: registerRider,
+                    isLoading: isLoading,
+                    icon: Icons.person_add,
                   ),
+                  const SizedBox(height: 16),
 
-                  SizedBox(height: 20),
-
-                  // Back to Login Link
+                  // Login link
                   TextButton(
-                    onPressed: goToLogin,
-                    child: Text(
-                      "Already have an account? Login",
-                      style: TextStyle(
-                        color: green,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                    },
+                    child: RichText(
+                      text: TextSpan(
+                        text: 'Already have an account? ',
+                        style: IniatoTheme.caption.copyWith(fontSize: 14),
+                        children: [
+                          TextSpan(
+                            text: 'Login',
+                            style: TextStyle(
+                              color: IniatoTheme.green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -257,6 +218,34 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String value,
+    required List<String> items,
+    required String label,
+    required void Function(String?) onChanged,
+  }) {
+    return InputDecorator(
+      decoration: IniatoTheme.inputDecoration(label),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isDense: true,
+          isExpanded: true,
+          items: items.map((e) {
+            return DropdownMenuItem(
+              value: e,
+              child: Text(
+                e[0] + e.substring(1).toLowerCase(),
+                style: IniatoTheme.body.copyWith(fontSize: 14),
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
         ),
       ),
     );
