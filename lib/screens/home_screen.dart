@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as gl;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../config/theme.dart';
+import '../models/ride.dart';
 import '../services/location_service.dart';
 import '../services/ride_service.dart';
 import '../models/route_model.dart';
+import 'active_ride_screen.dart';
 import 'search_screen.dart';
 
 /// Enhanced home screen with map, search bar, and nearby routes.
@@ -23,11 +25,14 @@ class _HomeScreenState extends State<HomeScreen> {
   List<RouteModel> _nearbyRoutes = [];
   bool _isLoadingRoutes = false;
   gl.Position? _currentPosition;
+  // Active ride resume
+  Ride? _activeRide;
 
   @override
   void initState() {
     super.initState();
     _initLocation();
+    _checkActiveRide();
   }
 
   Future<void> _initLocation() async {
@@ -41,6 +46,17 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) setState(() => _currentPosition = pos);
       },
     );
+  }
+
+  /// Checks if the rider has an in-progress ride and stores it for the banner.
+  Future<void> _checkActiveRide() async {
+    try {
+      final rides = await RideService.getMyRides();
+      final active = rides.where((r) => r.isActive).toList();
+      if (mounted) {
+        setState(() => _activeRide = active.isNotEmpty ? active.first : null);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadNearbyRoutes(double lat, double lng) async {
@@ -120,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(IniatoTheme.radiusLg),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -142,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       width: 1,
                       height: 24,
-                      color: Colors.grey.withOpacity(0.3),
+                      color: Colors.grey.withValues(alpha: 0.3),
                     ),
                     const SizedBox(width: 12),
                     Icon(Icons.schedule,
@@ -152,6 +168,86 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+
+          // ─── Active Ride Resume Banner ───
+          if (_activeRide != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 80,
+              left: 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ActiveRideScreen(
+                        ride: _activeRide!,
+                        pickupName: _activeRide!.passengerPickup.isNotEmpty
+                            ? _activeRide!.passengerPickup
+                            : _activeRide!.pickupLocation,
+                        destName: _activeRide!.passengerDest.isNotEmpty
+                            ? _activeRide!.passengerDest
+                            : _activeRide!.destination,
+                      ),
+                    ),
+                  ).then((_) => _checkActiveRide());
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: IniatoTheme.green,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: IniatoTheme.green.withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.directions_car, color: Colors.white, size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Ride in progress',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14)),
+                            Text(
+                              _activeRide!.passengerPickup.isNotEmpty
+                                  ? '${_activeRide!.passengerPickup} → ${_activeRide!.passengerDest}'
+                                  : 'Tap to resume',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text('Resume',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           // ─── My Location Button ───
           Positioned(
@@ -174,12 +270,10 @@ class _HomeScreenState extends State<HomeScreen> {
               return Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 16,
                       offset: const Offset(0, -4),
                     ),
@@ -192,8 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Drag handle
                     Center(
                       child: Container(
-                        width: 40,
-                        height: 4,
+                        width: 40, height: 4,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(2),
@@ -205,50 +298,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Quick actions
                     Row(
                       children: [
-                        _buildQuickAction(
-                          Icons.home_outlined,
-                          'Home',
-                          () {},
-                        ),
+                        _buildQuickAction(Icons.home_outlined, 'Home', () {}),
                         const SizedBox(width: 12),
-                        _buildQuickAction(
-                          Icons.work_outline,
-                          'Work',
-                          () {},
-                        ),
+                        _buildQuickAction(Icons.work_outline, 'Work', () {}),
                         const SizedBox(width: 12),
-                        _buildQuickAction(
-                          Icons.star_outline,
-                          'Saved',
-                          () {},
-                        ),
+                        _buildQuickAction(Icons.star_outline, 'Saved', () {}),
                       ],
                     ),
                     const SizedBox(height: 16),
 
                     // Nearby routes
                     if (_isLoadingRoutes)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(20),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
+                      const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
                     else if (_nearbyRoutes.isNotEmpty) ...[
-                      Text(
-                        'Nearby Auto Routes',
-                        style: IniatoTheme.subheading.copyWith(fontSize: 15),
-                      ),
+                      Text('Nearby Auto Routes', style: IniatoTheme.subheading.copyWith(fontSize: 15)),
                       const SizedBox(height: 8),
                       ..._nearbyRoutes.map(_buildRouteItem),
                     ] else ...[
                       Padding(
                         padding: const EdgeInsets.all(20),
-                        child: Text(
-                          'Search for a destination to find shared rides',
-                          style: IniatoTheme.caption,
-                          textAlign: TextAlign.center,
-                        ),
+                        child: Text('Search for a destination to find shared rides',
+                            style: IniatoTheme.caption, textAlign: TextAlign.center),
                       ),
                     ],
                   ],
@@ -268,7 +338,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: IniatoTheme.green.withOpacity(0.06),
+            color: IniatoTheme.green.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -298,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: IniatoTheme.green.withOpacity(0.1),
+              color: IniatoTheme.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(
@@ -326,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: IniatoTheme.green.withOpacity(0.1),
+              color: IniatoTheme.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(

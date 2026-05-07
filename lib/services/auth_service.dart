@@ -37,6 +37,13 @@ class AuthService {
         if (data is Map<String, dynamic> && data.containsKey('token')) {
           final authResponse = AuthResponse.fromJson(data);
           await ApiService.saveToken(authResponse.token);
+          // Save refresh token for silent renewal
+          if (authResponse.refreshToken != null &&
+              authResponse.refreshToken!.isNotEmpty) {
+            await ApiService.saveRefreshToken(authResponse.refreshToken!);
+          }
+          // Phone is the primary key — save it directly (already known from the call)
+          await ApiService.savePhone(phone);
           return authResponse;
         }
       } catch (_) {
@@ -73,7 +80,7 @@ class AuthService {
     return response.statusCode == 200;
   }
 
-  // ─── Email Login ───
+  // ─── Email Login (legacy — not used in OTP-only flow) ───
 
   static Future<AuthResponse?> loginWithEmail(
       String email, String password) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../models/ride.dart';
 import '../models/fare_estimate.dart';
+import '../services/ride_service.dart';
 import '../widgets/iniato_button.dart';
 import '../widgets/fare_breakdown.dart';
 import 'main_nav_screen.dart';
@@ -10,11 +11,17 @@ import 'main_nav_screen.dart';
 class RideCompleteScreen extends StatefulWidget {
   final Ride ride;
   final FareEstimate? fareEstimate;
+  /// The rider's own pickup name (may differ from the full route's origin).
+  final String? riderPickup;
+  /// The rider's own drop-off name (may differ from the full route's destination).
+  final String? riderDest;
 
   const RideCompleteScreen({
     super.key,
     required this.ride,
     this.fareEstimate,
+    this.riderPickup,
+    this.riderDest,
   });
 
   @override
@@ -23,6 +30,21 @@ class RideCompleteScreen extends StatefulWidget {
 
 class _RideCompleteScreenState extends State<RideCompleteScreen> {
   int _rating = 0;
+  bool _isSubmitting = false;
+
+  Future<void> _submitAndExit() async {
+    setState(() => _isSubmitting = true);
+    // Submit rating if the user selected one
+    if (_rating > 0) {
+      await RideService.rateDriver(widget.ride.rideId, _rating);
+    }
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const MainNavScreen()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,11 +118,17 @@ class _RideCompleteScreenState extends State<RideCompleteScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(widget.ride.pickupLocation,
+                          Text(
+                              widget.riderPickup?.isNotEmpty == true
+                                  ? widget.riderPickup!
+                                  : widget.ride.pickupLocation,
                               style: IniatoTheme.body
                                   .copyWith(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 16),
-                          Text(widget.ride.destination,
+                          Text(
+                              widget.riderDest?.isNotEmpty == true
+                                  ? widget.riderDest!
+                                  : widget.ride.destination,
                               style: IniatoTheme.body
                                   .copyWith(fontWeight: FontWeight.w600)),
                         ],
@@ -178,14 +206,7 @@ class _RideCompleteScreenState extends State<RideCompleteScreen> {
               // ─── Done ───
               IniatoButton(
                 label: 'Done',
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const MainNavScreen()),
-                    (route) => false,
-                  );
-                },
+                onPressed: _isSubmitting ? null : _submitAndExit,
                 icon: Icons.home,
               ),
             ],

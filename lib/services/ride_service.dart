@@ -71,6 +71,27 @@ class RideService {
     return null;
   }
 
+  /// Cancel participation in any non-completed ride (handles stuck POOL_FORMING / STARTED).
+  static Future<bool> cancelRide(int rideId) async {
+    final response = await ApiService.post(ApiConfig.cancelRide(rideId));
+    return response.statusCode == 200;
+  }
+
+  /// Request to be dropped off at the next stop (while ride is STARTED).
+  static Future<bool> requestDropOff(int rideId) async {
+    final response = await ApiService.post(ApiConfig.requestDropOff(rideId));
+    return response.statusCode == 200;
+  }
+
+  /// Submit a 1–5 star rating for the driver after a completed ride.
+  static Future<bool> rateDriver(int rideId, int rating) async {
+    final response = await ApiService.post(
+      ApiConfig.rateDriver(rideId),
+      body: {'rating': rating},
+    );
+    return response.statusCode == 200;
+  }
+
   // ─── Routes ───
 
   /// Find active routes near a location.

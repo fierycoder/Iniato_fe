@@ -59,6 +59,10 @@ class _RideDetailsScreenState extends State<RideDetailsScreen> {
               ride: ride,
               pickupName: widget.pickupName,
               destName: widget.destName,
+              pickupLat: widget.pickupLat,
+              pickupLng: widget.pickupLng,
+              destLat: widget.destLat,
+              destLng: widget.destLng,
             ),
           ),
         );

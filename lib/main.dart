@@ -25,16 +25,17 @@ class IniatoApp extends StatelessWidget {
       title: 'Iniato',
       debugShowCheckedModeBanner: false,
       theme: IniatoTheme.themeData,
-      home: kIsWeb
-          ? const Scaffold(
-              body: Center(
-                child: Text(
-                  'Please run on Android or iOS',
-                  style: TextStyle(fontSize: 18),
-                ),
-              ),
-            )
-          : const SplashScreen(),
+      // home: kIsWeb
+      //     ? const Scaffold(
+      //         body: Center(
+      //           child: Text(
+      //             'Please run on Android or iOS',
+      //             style: TextStyle(fontSize: 18),
+      //           ),
+      //         ),
+      //       )
+      //     : const SplashScreen(),
+      home: const SplashScreen(),
     );
   }
 }

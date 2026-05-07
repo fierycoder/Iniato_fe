@@ -1,14 +1,14 @@
 /// Centralized API configuration for the Iniato app.
 /// Change rl] to match your backend server address.
 class ApiConfig {
-  // ─── Change this to your machine's LAN IP when running on a real device ───
-  // Emulator: 'http://10.0.2.2:8081'
-  // Real device: 'http://192.168.31.119:8081'
-  // Windows desktop: 'http://localhost:8081'
-  static const String baseUrl = 'http://192.168.33.99:8081';
+  // ─── Change this to match your run target ───
+  // Android Emulator : 'http://10.0.2.2:8081'
+  // Physical device  : 'http://192.168.1.30:8081'   ← your machine's LAN IP
+  // Windows desktop  : 'http://localhost:8081'
+  static const String baseUrl = 'http://192.168.33.118:8081';
 
   // WebSocket
-  static const String wsUrl = 'ws://192.168.33.99:8081/ws/driver-location';
+  static const String wsUrl = 'http://192.168.33.118:8081/ws/driver-location';
 
   // Mapbox
   static const String mapboxToken =
@@ -24,6 +24,7 @@ class ApiConfig {
   static const String loginVerifyOtp = '/api/auth/login/verify-otp';
   static const String login = '/api/auth/login';
   static const String logout = '/api/auth/logout';
+  static const String refreshToken = '/api/auth/refresh';
 
   // ─── Passenger Profile ───
   static const String passengerProfile = '/api/passenger/profile';
@@ -32,6 +33,9 @@ class ApiConfig {
   static const String rideRequest = '/api/rides/request';
   static const String myRides = '/api/rides/my';
   static String leaveRide(int rideId) => '/api/rides/$rideId/leave';
+  static String cancelRide(int rideId) => '/api/rides/$rideId/cancel';
+  static String requestDropOff(int rideId) => '/api/rides/$rideId/request-dropoff';
+  static String rateDriver(int rideId) => '/api/rides/$rideId/rate';
 
   // ─── Matching ───
   static const String matchingFind = '/api/matching/find';

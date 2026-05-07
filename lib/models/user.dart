@@ -42,11 +42,13 @@ class User {
 /// JWT auth response from login/register.
 class AuthResponse {
   final String token;
+  final String? refreshToken;
   final String email;
   final List<String> roles;
 
   AuthResponse({
     required this.token,
+    this.refreshToken,
     required this.email,
     required this.roles,
   });
@@ -54,6 +56,7 @@ class AuthResponse {
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
     return AuthResponse(
       token: json['token'] ?? '',
+      refreshToken: json['refreshToken'],
       email: json['email'] ?? '',
       roles: List<String>.from(json['roles'] ?? []),
     );

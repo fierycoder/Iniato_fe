@@ -28,6 +28,7 @@ class MatchingRide {
   final String? requestedTime;
   final String? driverName;
   final List<String> passengerNames;
+  final int? availableSeats;
 
   MatchingRide({
     required this.rideId,
@@ -37,6 +38,7 @@ class MatchingRide {
     this.requestedTime,
     this.driverName,
     this.passengerNames = const [],
+    this.availableSeats,
   });
 
   factory MatchingRide.fromJson(Map<String, dynamic> json) {
@@ -48,6 +50,7 @@ class MatchingRide {
       requestedTime: json['requestedTime'],
       driverName: json['driverName'],
       passengerNames: List<String>.from(json['passengerNames'] ?? []),
+      availableSeats: json['availableSeats'] as int?,
     );
   }
 
